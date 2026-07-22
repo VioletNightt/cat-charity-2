@@ -8,12 +8,9 @@ from app.core.db import get_async_session
 from app.core.user import current_superuser
 from app.crud.charity_project import charity_project_crud
 from app.crud.donation import donation_crud
-from app.models.user import User
-from app.schemas.charity_project import (
-    CharityProjectCreate,
-    CharityProjectDB,
-    CharityProjectUpdate,
-)
+from app.schemas.charity_project import (CharityProjectCreate,
+                                         CharityProjectDB,
+                                         CharityProjectUpdate)
 from app.services.investment import invest_available_funds
 
 router = APIRouter()
@@ -24,7 +21,7 @@ async def get_all_projects(
     session: AsyncSession = Depends(get_async_session),
 ):
     """
-    Возвращает список всех проектов (доступно всем, включая анонимных пользователей).
+    Возвращает список всех благотворительных проектов.
     """
     projects = await charity_project_crud.get_all(session)
     return projects
@@ -33,11 +30,13 @@ async def get_all_projects(
 @router.post("/", response_model=CharityProjectDB)
 async def create_project(
     project_in: CharityProjectCreate,
+    user=Depends(current_superuser),
     session: AsyncSession = Depends(get_async_session),
-    user: User = Depends(current_superuser),
 ):
     """
-    Создаёт новый проект (только для суперпользователя).
+    Создаёт новый благотворительный проект.
+    Проверяет уникальность имени, затем сохраняет проект в БД
+    и запускает механизм инвестирования свободных средств.
     """
     existing = await charity_project_crud.get_by_name(project_in.name, session)
     if existing:
@@ -68,11 +67,14 @@ async def create_project(
 async def update_project(
     project_id: int,
     project_in: CharityProjectUpdate,
+    user=Depends(current_superuser),
     session: AsyncSession = Depends(get_async_session),
-    user: User = Depends(current_superuser),
 ):
     """
-    Обновляет проект (только для суперпользователя).
+    Обновляет данные существующего проекта.
+    Запрещает изменения, если проект уже полностью профинансирован.
+    Также проверяет, что новая требуемая сумма не меньше уже вложенной.
+    При достижении полной суммы автоматически устанавливается дата закрытия.
     """
     project = await charity_project_crud.get(project_id, session)
     if not project:
@@ -96,8 +98,7 @@ async def update_project(
 
     if project_in.name is not None and project_in.name != project.name:
         existing = await charity_project_crud.get_by_name(
-            project_in.name, session
-        )
+            project_in.name, session)
         if existing:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
@@ -105,8 +106,7 @@ async def update_project(
             )
 
     updated_project = await charity_project_crud.update(
-        project, project_in, session
-    )
+        project, project_in, session)
 
     if updated_project.invested_amount >= updated_project.full_amount:
         updated_project.fully_invested = True
@@ -121,11 +121,12 @@ async def update_project(
 @router.delete("/{project_id}", response_model=CharityProjectDB)
 async def delete_project(
     project_id: int,
+    user=Depends(current_superuser),
     session: AsyncSession = Depends(get_async_session),
-    user: User = Depends(current_superuser),
 ):
     """
-    Удаляет проект (только для суперпользователя).
+    Удаляет проект при условии, что он ещё не полностью профинансирован
+    и на него не поступало инвестиций.
     """
     project = await charity_project_crud.get(project_id, session)
     if not project:

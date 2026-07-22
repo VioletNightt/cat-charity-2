@@ -1,43 +1,49 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_async_session
-from app.core.user import current_user, current_superuser
+from app.core.user import current_superuser, current_user
 from app.crud.charity_project import charity_project_crud
 from app.crud.donation import donation_crud
 from app.models.user import User
-from app.schemas.donation import (
-    DonationCreate,
-    DonationCreateResponse,
-    DonationDB,
-    DonationUserResponse,
-)
+from app.schemas.donation import DonationCreate, DonationDB, DonationFullInfoDB
 from app.services.investment import invest_available_funds
 
 router = APIRouter()
 
 
-@router.get("/", response_model=list[DonationDB])
+@router.get("/", response_model=list[DonationFullInfoDB])
 async def get_all_donations(
-    session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_superuser),
+    session: AsyncSession = Depends(get_async_session),
 ):
     """
-    Возвращает список всех пожертвований (только для суперпользователя).
+    Возвращает список всех пожертвований.
+    В ответе содержатся все поля, включая `invested_amount` и `fully_invested`.
     """
     donations = await donation_crud.get_all(session)
     return donations
 
 
-@router.post("/", response_model=DonationCreateResponse)
+@router.get("/my", response_model=list[DonationDB])
+async def get_user_donations(
+    user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    return await donation_crud.get_by_user(user.id, session)
+
+
+@router.post("/", response_model=DonationDB)
 async def create_donation(
     donation_in: DonationCreate,
-    session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_user),
+    session: AsyncSession = Depends(get_async_session),
 ):
     """
-    Создаёт новое пожертвование (только для аутентифицированных пользователей).
-    Поле user_id заполняется автоматически из текущего пользователя.
+    Создаёт новое пожертвование.
+    После сохранения запускается механизм распределения средств
+    между открытыми проектами.
+    Фиксация транзакции происходит только после завершения инвестирования.
     """
     new_donation = await donation_crud.create(
         donation_in, session, commit=False, user_id=user.id
@@ -55,16 +61,3 @@ async def create_donation(
     await session.commit()
     await session.refresh(new_donation)
     return new_donation
-
-
-@router.get("/my", response_model=list[DonationUserResponse])
-async def get_my_donations(
-    session: AsyncSession = Depends(get_async_session),
-    user: User = Depends(current_user),
-):
-    """
-    Возвращает все пожертвования текущего пользователя.
-    Доступно только для аутентифицированных пользователей.
-    """
-    donations = await donation_crud.get_by_user(user.id, session)
-    return donations

@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, Text, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, ForeignKey, Integer, Text
 
 from app.models.base import BaseModel
 
@@ -10,5 +9,3 @@ class Donation(BaseModel):
     comment = Column(Text, nullable=True)
     full_amount = Column(Integer, nullable=False)
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
-
-    user = relationship("User", back_populates="donations")

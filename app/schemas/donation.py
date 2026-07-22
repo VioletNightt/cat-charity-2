@@ -16,7 +16,7 @@ class DonationCreate(DonationBase):
         extra = "forbid"
 
 
-class DonationCreateResponse(BaseModel):
+class DonationDB(BaseModel):
     id: int
     full_amount: int
     comment: Optional[str] = None
@@ -26,23 +26,8 @@ class DonationCreateResponse(BaseModel):
         from_attributes = True
 
 
-class DonationDB(DonationBase):
-    id: int
+class DonationFullInfoDB(DonationDB):
+    user_id: int
     invested_amount: int
     fully_invested: bool
-    create_date: datetime
     close_date: Optional[datetime]
-    user_id: int
-
-    class Config:
-        from_attributes = True
-
-
-class DonationUserResponse(BaseModel):
-    id: int
-    comment: Optional[str] = None
-    full_amount: int
-    create_date: datetime
-
-    class Config:
-        from_attributes = True

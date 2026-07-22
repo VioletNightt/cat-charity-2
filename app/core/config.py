@@ -3,8 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./fastapi.db"
-    secret_key: str = "supersecretkey"
-    algorithm: str = "HS256"
+    secret: str = "SECRET"
 
     model_config = SettingsConfigDict(
         env_file="../.env",
