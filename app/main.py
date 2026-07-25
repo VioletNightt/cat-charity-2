@@ -12,12 +12,10 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
     yield
 
-
 app = FastAPI(
     lifespan=lifespan,
     title="QRKot",
     description="Фонд поддержки котиков",
     version="1.0.0",
 )
-
 app.include_router(main_router)
